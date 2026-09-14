@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<!--
+============================================================================
+ DASHBOARD "TURMAS CONCLUÍDAS" — CIAR/UFG
+============================================================================
+ ESTE ARQUIVO É UMA PÁGINA HTML COMPLETA E INDEPENDENTE.
+ Ela NÃO deve ser colada dentro do editor de texto do Weby (o CKEditor do
+ Weby remove tags <script>). Em vez disso:
+
+ 1. Hospede este arquivo como "index.html" em um serviço estático externo
+    (ex.: GitHub Pages — ver instruções enviadas no chat).
+ 2. Copie a URL pública gerada (ex.: https://SEUUSUARIO.github.io/REPO/).
+ 3. Na página do Weby (ciar.ufg.br/p/33912-turmas-concluidas), abra o
+    editor de texto, clique no botão de código-fonte (<>) e cole:
+
+      <iframe src="https://SEUUSUARIO.github.io/REPO/"
+              title="Dashboard Turmas Concluídas CIAR/UFG"
+              style="width:100%;height:1600px;border:0;display:block;"
+              loading="lazy"></iframe>
+
+    Ajuste o "height" se sobrar ou faltar espaço (ver observação no chat
+    sobre como estimar essa altura).
+ 4. Salve e publique a página.
+
+ MANUTENÇÃO: atualize o array DATA logo abaixo sempre que novas turmas se
+ formarem, depois reenvie o arquivo atualizado para o mesmo lugar (GitHub
+ Pages atualiza sozinho a cada novo commit/push).
+============================================================================
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Turmas Concluídas · CIAR/UFG</title>
+</head>
+<body>
+<div id="ciarTC" class="ciarTC">
+
+  <header class="ciarTC-head">
+    <h2>Turmas Concluídas — Painel de Formados</h2>
+    <p class="ciarTC-updated">Dados consolidados do CIAR/UFG · última atualização dos dados-fonte: 10/08/2023</p>
+  </header>
+
+  <!-- ===================== FILTROS DO DASHBOARD ===================== -->
+  <section class="ciarTC-filters" aria-label="Filtros do painel">
+    <div class="ciarTC-field">
+      <label for="fNivel">Nível</label>
+      <select id="fNivel" multiple size="5"></select>
+    </div>
+    <div class="ciarTC-field">
+      <label for="fAno">Ano de conclusão</label>
+      <select id="fAno" multiple size="5"></select>
+    </div>
+    <div class="ciarTC-field">
+      <label for="fCurso">Curso</label>
+      <select id="fCurso" multiple size="5"></select>
+    </div>
+    <div class="ciarTC-field">
+      <label for="fCidade">Cidade / Polo</label>
+      <select id="fCidade" multiple size="5"></select>
+    </div>
+    <div class="ciarTC-field ciarTC-actions">
+      <button type="button" id="btnLimpar" class="ciarTC-btn ciarTC-btn-ghost">Limpar filtros</button>
+      <span class="ciarTC-hint">Use Ctrl/Cmd ou Shift para selecionar mais de um item.</span>
+    </div>
+  </section>
+
+  <!-- ===================== RESUMO / KPIs ===================== -->
+  <section class="ciarTC-kpis" aria-label="Resumo dos dados filtrados">
+    <div class="ciarTC-kpi">
+      <span class="ciarTC-kpi-value" id="kpiFormados">0</span>
+      <span class="ciarTC-kpi-label">Formados (seleção atual)</span>
+    </div>
+    <div class="ciarTC-kpi">
+      <span class="ciarTC-kpi-value" id="kpiCursos">0</span>
+      <span class="ciarTC-kpi-label">Cursos</span>
+    </div>
+    <div class="ciarTC-kpi">
+      <span class="ciarTC-kpi-value" id="kpiPolos">0</span>
+      <span class="ciarTC-kpi-label">Cidades / Polos</span>
+    </div>
+    <div class="ciarTC-kpi">
+      <span class="ciarTC-kpi-value" id="kpiTurmas">0</span>
+      <span class="ciarTC-kpi-label">Turmas (curso × ano × chamada)</span>
+    </div>
+  </section>
+
+  <!-- ===================== GRÁFICOS ===================== -->
+  <section class="ciarTC-charts" aria-label="Gráficos">
+    <div class="ciarTC-chart-box">
+      <h3>Formados por Nível</h3>
+      <canvas id="chartNivel" height="220"></canvas>
+    </div>
+    <div class="ciarTC-chart-box">
+      <h3>Formados por Ano</h3>
+      <canvas id="chartAno" height="220"></canvas>
+    </div>
+  </section>
+
+  <!-- ===================== EXPORTAÇÃO ===================== -->
+  <section class="ciarTC-export" aria-label="Exportar dados">
+    <div class="ciarTC-export-group">
+      <strong>Exportar seleção filtrada:</strong>
+      <button type="button" class="ciarTC-btn" data-export="csv" data-scope="filtered">CSV</button>
+      <button type="button" class="ciarTC-btn" data-export="xls" data-scope="filtered">XLS</button>
+      <button type="button" class="ciarTC-btn" data-export="pdf" data-scope="filtered">PDF</button>
+    </div>
+    <div class="ciarTC-export-group">
+      <strong>Exportar todos os dados:</strong>
+      <button type="button" class="ciarTC-btn ciarTC-btn-outline" data-export="csv" data-scope="all">CSV</button>
+      <button type="button" class="ciarTC-btn ciarTC-btn-outline" data-export="xls" data-scope="all">XLS</button>
+      <button type="button" class="ciarTC-btn ciarTC-btn-outline" data-export="pdf" data-scope="all">PDF</button>
+    </div>
+    <div class="ciarTC-export-group">
+      <strong id="selCount">0 linha(s) marcada(s) nas tabelas abaixo</strong>
+      <button type="button" class="ciarTC-btn" data-export="csv" data-scope="checked">Exportar marcadas (CSV)</button>
+      <button type="button" class="ciarTC-btn" data-export="xls" data-scope="checked">Exportar marcadas (XLS)</button>
+    </div>
+  </section>
+
+  <!-- ===================== ABAS POR NÍVEL ===================== -->
+  <section class="ciarTC-tabs-wrap" aria-label="Detalhamento por nível de curso">
+    <div class="ciarTC-tabs" id="tabButtons" role="tablist"></div>
+    <div id="tabPanels"></div>
+  </section>
+
+</div>
+
+<style>
+  html,body{ margin:0; padding:0; background:#fff; }
+  #ciarTC.ciarTC{
+    --tc-primary:#0b5d3b; --tc-primary-dark:#083f28; --tc-accent:#e9a825;
+    --tc-bg:#f6f8f7; --tc-border:#dbe3df; --tc-text:#1f2a26; --tc-muted:#5c6b64;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif; color:var(--tc-text);
+    max-width:1200px; margin:0 auto; padding:16px; box-sizing:border-box;
+  }
+  #ciarTC *, #ciarTC *::before, #ciarTC *::after{ box-sizing:border-box; }
+  #ciarTC .ciarTC-head h2{ margin:0 0 4px; color:var(--tc-primary-dark); font-size:1.5rem; }
+  #ciarTC .ciarTC-updated{ margin:0 0 18px; color:var(--tc-muted); font-size:.85rem; }
+
+  #ciarTC .ciarTC-filters{
+    display:grid; grid-template-columns:repeat(4,1fr) 1.4fr; gap:12px;
+    background:var(--tc-bg); border:1px solid var(--tc-border); border-radius:10px;
+    padding:14px; margin-bottom:18px;
+  }
+  #ciarTC .ciarTC-field label{ display:block; font-weight:600; font-size:.8rem; margin-bottom:4px; color:var(--tc-primary-dark); }
+  #ciarTC .ciarTC-field select{
+    width:100%; border:1px solid var(--tc-border); border-radius:6px; padding:4px;
+    font-size:.85rem; background:#fff;
+  }
+  #ciarTC .ciarTC-actions{ display:flex; flex-direction:column; justify-content:flex-end; gap:6px; }
+  #ciarTC .ciarTC-hint{ font-size:.72rem; color:var(--tc-muted); }
+
+  #ciarTC .ciarTC-btn{
+    background:var(--tc-primary); color:#fff; border:none; border-radius:6px;
+    padding:7px 12px; font-size:.82rem; cursor:pointer; font-weight:600;
+  }
+  #ciarTC .ciarTC-btn:hover{ background:var(--tc-primary-dark); }
+  #ciarTC .ciarTC-btn-ghost{ background:transparent; color:var(--tc-primary-dark); border:1px solid var(--tc-primary-dark); }
+  #ciarTC .ciarTC-btn-ghost:hover{ background:#fff; }
+  #ciarTC .ciarTC-btn-outline{ background:#fff; color:var(--tc-primary); border:1px solid var(--tc-primary); }
+  #ciarTC .ciarTC-btn-outline:hover{ background:var(--tc-bg); }
+
+  #ciarTC .ciarTC-kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px; }
+  #ciarTC .ciarTC-kpi{
+    background:linear-gradient(160deg,var(--tc-primary),var(--tc-primary-dark)); color:#fff;
+    border-radius:10px; padding:14px; text-align:center;
+  }
+  #ciarTC .ciarTC-kpi-value{ display:block; font-size:1.7rem; font-weight:800; }
+  #ciarTC .ciarTC-kpi-label{ display:block; font-size:.75rem; opacity:.9; margin-top:2px; }
+
+  #ciarTC .ciarTC-charts{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  #ciarTC .ciarTC-chart-box{ border:1px solid var(--tc-border); border-radius:10px; padding:12px; background:#fff; }
+  #ciarTC .ciarTC-chart-box h3{ margin:0 0 8px; font-size:.95rem; color:var(--tc-primary-dark); }
+
+  #ciarTC .ciarTC-export{
+    display:flex; flex-wrap:wrap; gap:16px; align-items:center;
+    border:1px dashed var(--tc-border); border-radius:10px; padding:12px 14px; margin-bottom:20px;
+    background:#fbfdfc; font-size:.85rem;
+  }
+  #ciarTC .ciarTC-export-group{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+  #ciarTC .ciarTC-tabs{ display:flex; flex-wrap:wrap; gap:4px; border-bottom:2px solid var(--tc-border); margin-bottom:0; }
+  #ciarTC .ciarTC-tab-btn{
+    padding:9px 16px; border:1px solid var(--tc-border); border-bottom:none; background:#eef2f0;
+    border-radius:8px 8px 0 0; cursor:pointer; font-weight:600; font-size:.85rem; color:var(--tc-muted);
+  }
+  #ciarTC .ciarTC-tab-btn[aria-selected="true"]{ background:#fff; color:var(--tc-primary-dark); border-color:var(--tc-border); position:relative; top:1px; }
+  #ciarTC .ciarTC-tab-panel{ border:1px solid var(--tc-border); border-top:none; padding:14px; background:#fff; display:none; }
+  #ciarTC .ciarTC-tab-panel.active{ display:block; }
+  #ciarTC .ciarTC-tab-summary{ font-size:.85rem; color:var(--tc-muted); margin:0 0 10px; }
+
+  #ciarTC table.ciarTC-table{ width:100%; border-collapse:collapse; font-size:.82rem; }
+  #ciarTC table.ciarTC-table th, #ciarTC table.ciarTC-table td{
+    border:1px solid var(--tc-border); padding:6px 8px; text-align:left; vertical-align:top;
+  }
+  #ciarTC table.ciarTC-table th{ background:var(--tc-bg); color:var(--tc-primary-dark); position:sticky; top:0; }
+  #ciarTC table.ciarTC-table tbody tr:nth-child(even){ background:#fafcfb; }
+  #ciarTC table.ciarTC-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  #ciarTC .ciarTC-table-scroll{ max-height:520px; overflow:auto; border:1px solid var(--tc-border); border-radius:6px; }
+
+  #ciarTC .ciarTC-empty{ padding:20px; text-align:center; color:var(--tc-muted); font-style:italic; }
+
+  @media (max-width: 900px){
+    #ciarTC .ciarTC-filters{ grid-template-columns:1fr 1fr; }
+    #ciarTC .ciarTC-kpis{ grid-template-columns:1fr 1fr; }
+    #ciarTC .ciarTC-charts{ grid-template-columns:1fr; }
+  }
+  @media print{
+    body *{ visibility:hidden; }
+    #ciarTC-print-area, #ciarTC-print-area *{ visibility:visible; }
+    #ciarTC-print-area{ position:absolute; left:0; top:0; width:100%; }
+  }
+</style>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ==========================================================
+     BASE DE DADOS
+     Estrutura de cada linha:
+     [ nivel, ano, curso, unidade, chamada, polo, formadosNoPolo, totalDoCurso ]
+     "formadosNoPolo" é o número na coluna "Por Polo".
+     "totalDoCurso" é o número na coluna "Total" (repetido em todas as
+     linhas do mesmo grupo curso+ano+chamada só para referência/exibição;
+     a soma dos KPIs usa sempre "formadosNoPolo" para não contar em dobro).
+     Valores "Não informado" na fonte viram null.
+     ========================================================== */
+  var NIVEIS = ["Graduação","Aperfeiçoamento","Extensão","Especialização","Mestrado"];
+
+  var DATA = [
+    // ---------------- GRADUAÇÃO ----------------
+    ["Graduação",2021,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Alto Paraíso",16,88],
+    ["Graduação",2021,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Aparecida de Goiânia",10,88],
+    ["Graduação",2021,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Catalão",21,88],
+    ["Graduação",2021,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Goianésia",17,88],
+    ["Graduação",2021,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Mineiros",8,88],
+    ["Graduação",2021,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Posse",6,88],
+    ["Graduação",2021,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","UAB","São Simão",10,88],
+    ["Graduação",2021,"Artes Visuais","Faculdade de Artes Visuais (FAV)","UAB","Anápolis",2,29],
+    ["Graduação",2021,"Artes Visuais","Faculdade de Artes Visuais (FAV)","UAB","Aparecida",6,29],
+    ["Graduação",2021,"Artes Visuais","Faculdade de Artes Visuais (FAV)","UAB","Cavalcante",8,29],
+    ["Graduação",2021,"Artes Visuais","Faculdade de Artes Visuais (FAV)","UAB","Inhumas",9,29],
+    ["Graduação",2021,"Artes Visuais","Faculdade de Artes Visuais (FAV)","UAB","Mineiros",4,29],
+
+    ["Graduação",2019,"Física","IF - Instituto de Física","UAB","Aparecida de Goiânia",3,4],
+    ["Graduação",2019,"Física","IF - Instituto de Física","UAB","Goianésia",1,4],
+    ["Graduação",2019,"Física","IF - Instituto de Física","UAB","Inhumas",null,4],
+    ["Graduação",2019,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Águas Lindas",5,20],
+    ["Graduação",2019,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Alto Paraíso",3,20],
+    ["Graduação",2019,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Cezarina",2,20],
+    ["Graduação",2019,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Uruaçu",6,20],
+    ["Graduação",2019,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Uruana",4,20],
+
+    ["Graduação",2018,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Alexânia",6,19],
+    ["Graduação",2018,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Cezarina",5,19],
+    ["Graduação",2018,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Inhumas",5,19],
+    ["Graduação",2018,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Uruaçu",3,19],
+    ["Graduação",2018,"Ciências Biológicas","ICB - Instituto de Ciências Biológicas","PARFOR","Mineiros",1,1],
+    ["Graduação",2018,"Ciências Biológicas","ICB - Instituto de Ciências Biológicas","UAB","Goianésia",21,29],
+    ["Graduação",2018,"Ciências Biológicas","ICB - Instituto de Ciências Biológicas","UAB","Goiás",8,29],
+    ["Graduação",2018,"Física","IF - Instituto de Física","UAB","Aparecida de Goiânia",2,2],
+    ["Graduação",2018,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Águas Lindas",6,15],
+    ["Graduação",2018,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Alto Paraíso",3,15],
+    ["Graduação",2018,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Cezarina",2,15],
+    ["Graduação",2018,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Uruaçu",2,15],
+    ["Graduação",2018,"Matemática","UFCat (antiga Regional Catalão da UFG)","UAB","Uruana",2,15],
+
+    ["Graduação",2017,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","PNAP","Alto Paraíso",23,96],
+    ["Graduação",2017,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","PNAP","Aparecida de Goiânia",20,96],
+    ["Graduação",2017,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","PNAP","Catalão",17,96],
+    ["Graduação",2017,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","PNAP","Goianésia",22,96],
+    ["Graduação",2017,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","PNAP","Mineiros",6,96],
+    ["Graduação",2017,"Administração Pública","UFCat (antiga Regional Catalão da UFG)","PNAP","São Simão",8,96],
+
+    ["Graduação",2016,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Goiás",1,1],
+    ["Graduação",2016,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Alexânia",2,7],
+    ["Graduação",2016,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Anápolis",1,7],
+    ["Graduação",2016,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Aparecida de Goiânia",2,7],
+    ["Graduação",2016,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Formosa",1,7],
+    ["Graduação",2016,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Uruana",1,7],
+    ["Graduação",2016,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Mineiros",1,1],
+    ["Graduação",2016,"Educação Física","FEFD - Faculdade de Educação Física e Dança","PARFOR","Alexânia",4,10],
+    ["Graduação",2016,"Educação Física","FEFD - Faculdade de Educação Física e Dança","PARFOR","Formosa",3,10],
+    ["Graduação",2016,"Educação Física","FEFD - Faculdade de Educação Física e Dança","PARFOR","Uruana",3,10],
+    ["Graduação",2016,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Goianésia",1,4],
+    ["Graduação",2016,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Goiás",1,4],
+    ["Graduação",2016,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Mineiros",1,4],
+    ["Graduação",2016,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","São Simão",1,4],
+
+    ["Graduação",2015,"Artes Cênicas","EMAC – Escola de Música e Artes Cênicas","PARFOR","Aparecida de Goiânia",11,11],
+    ["Graduação",2015,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Goiás",3,3],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Alexânia",4,50],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Anápolis",11,50],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Aparecida de Goiânia",10,50],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Formosa",8,50],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Goianésia",8,50],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","São Simão",1,50],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","PARFOR","Uruana",8,50],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Inhumas",3,5],
+    ["Graduação",2015,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Mineiros",2,5],
+    ["Graduação",2015,"Educação Física","FEF – Faculdade de Educação Física","PARFOR","Alexânia",15,55],
+    ["Graduação",2015,"Educação Física","FEF – Faculdade de Educação Física","PARFOR","Formosa",13,55],
+    ["Graduação",2015,"Educação Física","FEF – Faculdade de Educação Física","PARFOR","Goianésia",11,55],
+    ["Graduação",2015,"Educação Física","FEF – Faculdade de Educação Física","PARFOR","Uruana",16,55],
+    ["Graduação",2015,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Goianésia",4,11],
+    ["Graduação",2015,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Goiás",1,11],
+    ["Graduação",2015,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Inhumas",1,11],
+    ["Graduação",2015,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","São Simão",2,11],
+    ["Graduação",2015,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Uruana",3,11],
+    ["Graduação",2015,"Física","IF - Instituto de Física","UAB","Goiânia",3,3],
+
+    ["Graduação",2014,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Goiânia",2,4],
+    ["Graduação",2014,"Artes Cênicas","EMAC - Escola de Música e Artes Cênicas","UAB","Goiás",2,4],
+    ["Graduação",2014,"Artes Visuais","FAV - Faculdade de Artes Visuais","UAB","Mineiros",1,1],
+    ["Graduação",2014,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","PARFOR","Goianésia",26,30],
+    ["Graduação",2014,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","PARFOR","Mineiros",4,30],
+    ["Graduação",2014,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Alexânia",1,14],
+    ["Graduação",2014,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Formosa",4,14],
+    ["Graduação",2014,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Goianésia",1,14],
+    ["Graduação",2014,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Goiás",1,14],
+    ["Graduação",2014,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Mineiros",2,14],
+    ["Graduação",2014,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","São Simão",3,14],
+    ["Graduação",2014,"Educação Física","FEFD - Faculdade de Educação Física e Dança","UAB","Uruana",2,14],
+    ["Graduação",2014,"Física","IF - Instituto de Física","UAB","Goianésia",9,15],
+    ["Graduação",2014,"Física","IF - Instituto de Física","UAB","Goiânia",4,15],
+    ["Graduação",2014,"Física","IF - Instituto de Física","UAB","Mineiros",2,15],
+
+    ["Graduação",2013,"Artes Cênicas","EMAC – Escola de Música e Artes Cênicas","UAB","Catalão",2,11],
+    ["Graduação",2013,"Artes Cênicas","EMAC – Escola de Música e Artes Cênicas","UAB","Goiânia",7,11],
+    ["Graduação",2013,"Artes Cênicas","EMAC – Escola de Música e Artes Cênicas","UAB","Goiás",2,11],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","Prolicenciatura I","Catalão",11,110],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","Prolicenciatura I","Ceres",15,110],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","Prolicenciatura I","Firminópolis",12,110],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","Prolicenciatura I","Goiânia",58,110],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","Prolicenciatura I","Jataí",14,110],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Anápolis",18,97],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Aparecida de Goiânia",19,97],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Inhumas",24,97],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Iporá",1,97],
+    ["Graduação",2013,"Artes Visuais","FAV – Faculdade de Artes Visuais","UAB","Mineiros",35,97],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","Alexânia",14,102],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","Formosa",19,102],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","Goianésia",7,102],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","Goiás",8,102],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","Inhumas",23,102],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","Mineiros",6,102],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","São Simão",8,102],
+    ["Graduação",2013,"Educação Física","FEF – Faculdade de Educação Física","UAB","Uruana",17,102],
+
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Anápolis",19,115],
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Catalão",15,115],
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Ceres",16,115],
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Goiânia",21,115],
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Goiás",14,115],
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Jataí",5,115],
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Porangatu",19,115],
+    ["Graduação",2012,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura II","Quirinópolis",6,115],
+
+    ["Graduação",2011,"Administração","FACE – Faculdade de Administração e Ciências Contábeis e Econômicas","Administração Piloto","Goiânia",115,172],
+    ["Graduação",2011,"Administração","FACE – Faculdade de Administração e Ciências Contábeis e Econômicas","Administração Piloto","Jataí",21,172],
+    ["Graduação",2011,"Administração","FACE – Faculdade de Administração e Ciências Contábeis e Econômicas","Administração Piloto","Morrinhos",14,172],
+    ["Graduação",2011,"Administração","FACE – Faculdade de Administração e Ciências Contábeis e Econômicas","Administração Piloto","Porangatu",14,172],
+    ["Graduação",2011,"Administração","FACE – Faculdade de Administração e Ciências Contábeis e Econômicas","Administração Piloto","Quirinópolis",8,172],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Anápolis",10,97],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Catalão",17,97],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Ceres",18,97],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Goiânia",14,97],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Goiás",13,97],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Jataí",5,97],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Porangatu",13,97],
+    ["Graduação",2011,"Ciências Biológicas","ICB – Instituto de Ciências Biológicas","Prolicenciatura I","Quirinópolis",7,97],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Anápolis",10,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Catalão",11,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Formosa",8,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Goianésia",15,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Goiânia",27,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Goiás",5,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Iporá",12,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","Prolicenciatura II","Jataí",5,93],
+    ["Graduação",2011,"Física","IF - Instituto de Física","UAB","Goianésia",9,9],
+
+    // ---------------- APERFEIÇOAMENTO ----------------
+    ["Aperfeiçoamento",2014,"Docência na Escola de Tempo Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Catalão",13,181],
+    ["Aperfeiçoamento",2014,"Docência na Escola de Tempo Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Ceres",31,181],
+    ["Aperfeiçoamento",2014,"Docência na Escola de Tempo Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Goiás",33,181],
+    ["Aperfeiçoamento",2014,"Docência na Escola de Tempo Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Jataí",27,181],
+    ["Aperfeiçoamento",2014,"Docência na Escola de Tempo Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Luziânia",30,181],
+    ["Aperfeiçoamento",2014,"Docência na Escola de Tempo Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Trindade",47,181],
+    ["Aperfeiçoamento",2014,"Proposta Curricular e Metodologias na Educação Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Planaltina",29,108],
+    ["Aperfeiçoamento",2014,"Proposta Curricular e Metodologias na Educação Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Rio Verde",34,108],
+    ["Aperfeiçoamento",2014,"Proposta Curricular e Metodologias na Educação Integral","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (1ª oferta)","Silvânia",45,108],
+
+    ["Aperfeiçoamento",2013,"Educação Quilombola","Faculdade de História","SECADI","Alto Paraíso",23,94],
+    ["Aperfeiçoamento",2013,"Educação Quilombola","Faculdade de História","SECADI","Anápolis",31,94],
+    ["Aperfeiçoamento",2013,"Educação Quilombola","Faculdade de História","SECADI","Formosa",25,94],
+    ["Aperfeiçoamento",2013,"Educação Quilombola","Faculdade de História","SECADI","Uruaçu",15,94],
+
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Águas Lindas",38,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Alexânia",38,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Aparecida de Goiânia",48,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Cezarina",40,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Goiás",33,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Piranhas",34,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","São Miguel do Araguaia",29,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","São Simão",24,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Uruaçu",41,370],
+    ["Aperfeiçoamento",2012,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (2ª oferta)","Uruana",45,370],
+
+    ["Aperfeiçoamento",2011,"Educação Quilombola","Faculdade de História","SECADI","Anápolis",36,136],
+    ["Aperfeiçoamento",2011,"Educação Quilombola","Faculdade de História","SECADI","Cidade de Goiás",36,136],
+    ["Aperfeiçoamento",2011,"Educação Quilombola","Faculdade de História","SECADI","Inhumas",29,136],
+    ["Aperfeiçoamento",2011,"Educação Quilombola","Faculdade de História","SECADI","Morrinhos",35,136],
+
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Anápolis",26,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Catalão",12,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Formosa",38,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Goianésia",29,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Inhumas",28,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Iporá",33,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Mineiros",6,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Morrinhos",29,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Posse",39,277],
+    ["Aperfeiçoamento",2010,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SECADI","Rio Verde",37,277],
+
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Alexânia",23,173],
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Catalão",18,173],
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Inhumas",16,173],
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Itumbiara",33,173],
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Mineiros",18,173],
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Posse",29,173],
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","São Simão",14,173],
+    ["Aperfeiçoamento",2009,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Uruana",22,173],
+
+    // ---------------- EXTENSÃO ----------------
+    ["Extensão",2016,"Curso de Formação de Tutores","CIAR - Centro Integrado de Aprendizagem em Rede","UAB","Goiânia",85,85],
+    ["Extensão",2016,"Curso de Formação de Tutores 40h","CIAR - Centro Integrado de Aprendizagem em Rede","UAB","Catalão",134,446],
+    ["Extensão",2016,"Curso de Formação de Tutores 40h","CIAR - Centro Integrado de Aprendizagem em Rede","UAB","Goiânia",312,446],
+    ["Extensão",2016,"Curso de Formação Moodle","CIAR - Centro Integrado de Aprendizagem em Rede","UAB","Catalão",15,51],
+    ["Extensão",2016,"Curso de Formação Moodle","CIAR - Centro Integrado de Aprendizagem em Rede","UAB","Goiânia",36,51],
+    ["Extensão",2016,"Programa de Formação para Docência no Ensino Superior - Docência em Tempos Tecnológicos","PRODIRH/CIAR","UAB","Goiânia",65,88],
+    ["Extensão",2016,"Programa de Formação para Docência no Ensino Superior - Docência em Tempos Tecnológicos","PRODIRH/CIAR","UAB","Goiás",23,88],
+
+    ["Extensão",2015,"África em Arte-Educação: Construção de Objetos Pedagógicos","FH - Faculdade de História","SECADI","Goiânia",109,109],
+    ["Extensão",2015,"Prevenção do Uso de Drogas para Educadores Públicos","NEPED/UFG","SEB 2013","Todo o Estado de Goiás",1992,1992],
+
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Anápolis",62,444],
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Formosa",62,444],
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Goianésia",58,444],
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Inhumas",48,444],
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Iporá",58,444],
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Morrinhos",60,444],
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Posse",44,444],
+    ["Extensão",2014,"Educação Integral e Integrada","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","SEB (3ª oferta)","Rio Verde",52,444],
+    ["Extensão",2014,"Formação de Orientadores Acadêmicos e Tutores de Polo","CIAR - Centro Integrado de Aprendizagem em Rede","PACC 2012","Goiânia",342,342],
+
+    ["Extensão",2013,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Alto Paraíso",14,80],
+    ["Extensão",2013,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Anápolis",17,80],
+    ["Extensão",2013,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Cezarina",13,80],
+    ["Extensão",2013,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Formosa",14,80],
+    ["Extensão",2013,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","São Simão",22,80],
+    ["Extensão",2013,"Formação de Orientadores Acadêmicos e Tutores de Polo","CIAR - Centro Integrado de Aprendizagem em Rede","PACC 2011","Goiânia",96,96],
+    ["Extensão",2013,"Formação de Professores Autores","CIAR - Centro Integrado de Aprendizagem em Rede","PACC 2011","Goiânia",87,87],
+    ["Extensão",2013,"Moodle para professores","CIAR - Centro Integrado de Aprendizagem em Rede","PACC 2011","Goiânia",79,79],
+    ["Extensão",2013,"Programa de Apoio aos Dirigentes Municipais de Educação","FE- Faculdade de Educação","PRADIME 2012","Goiânia",93,93],
+
+    ["Extensão",2012,"Educação para as Relações Etnicorraciais","FH – Faculdade de História","SECADI","Anápolis",36,97],
+    ["Extensão",2012,"Educação para as Relações Etnicorraciais","FH – Faculdade de História","SECADI","Goiás",39,97],
+    ["Extensão",2012,"Educação para as Relações Etnicorraciais","FH – Faculdade de História","SECADI","Inhumas",22,97],
+    ["Extensão",2012,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Anápolis",43,114],
+    ["Extensão",2012,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Catalão",19,114],
+    ["Extensão",2012,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Cezarina",25,114],
+    ["Extensão",2012,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Formosa",12,114],
+    ["Extensão",2012,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Uruaçu",15,114],
+
+    ["Extensão",2011,"Atividade de Integração de Polos","CIAR","PACC 2010","Anápolis",18,68],
+    ["Extensão",2011,"Atividade de Integração de Polos","CIAR","PACC 2010","Catalão",28,68],
+    ["Extensão",2011,"Atividade de Integração de Polos","CIAR","PACC 2010","Formosa",22,68],
+    ["Extensão",2011,"Educação para as Relações Etnicorraciais","FH – Faculdade de História","SECADI","Anápolis",36,134],
+    ["Extensão",2011,"Educação para as Relações Etnicorraciais","FH – Faculdade de História","SECADI","Goiás",34,134],
+    ["Extensão",2011,"Educação para as Relações Etnicorraciais","FH – Faculdade de História","SECADI","Inhumas",29,134],
+    ["Extensão",2011,"Educação para as Relações Etnicorraciais","FH – Faculdade de História","SECADI","Morrinhos",35,134],
+    ["Extensão",2011,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Anápolis",24,159],
+    ["Extensão",2011,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Catalão",40,159],
+    ["Extensão",2011,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Cezarina",28,159],
+    ["Extensão",2011,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Formosa",28,159],
+    ["Extensão",2011,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Morrinhos",24,159],
+    ["Extensão",2011,"Estatuto da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Uruaçu",15,159],
+    ["Extensão",2011,"Formação de Orientadores Acadêmicos e Tutores de Polo","CIAR","PACC 2010","Goiânia",493,493],
+    ["Extensão",2011,"Formação de Professores Autores","CIAR","PACC 2010","Goiânia",51,51],
+    ["Extensão",2011,"Formação Pedagógica em EaD","CIAR","PACC 2010","Goiânia",115,115],
+    ["Extensão",2011,"Moodle para Professores","CIAR","PACC 2010","Goiânia",154,154],
+
+    // ---------------- ESPECIALIZAÇÃO ----------------
+    ["Especialização",2019,"Arte Educação Intermediática Digital","EMAC - Escola de Música e Artes Cênicas","UAB","Anápolis",33,96],
+    ["Especialização",2019,"Arte Educação Intermediática Digital","EMAC - Escola de Música e Artes Cênicas","UAB","Aparecida de Goiânia",34,96],
+    ["Especialização",2019,"Arte Educação Intermediática Digital","EMAC - Escola de Música e Artes Cênicas","UAB","Cavalcante",12,96],
+    ["Especialização",2019,"Arte Educação Intermediática Digital","EMAC - Escola de Música e Artes Cênicas","UAB","Goianésia",6,96],
+    ["Especialização",2019,"Arte Educação Intermediática Digital","EMAC - Escola de Música e Artes Cênicas","UAB","Posse",2,96],
+    ["Especialização",2019,"Arte Educação Intermediática Digital","EMAC - Escola de Música e Artes Cênicas","UAB","Uruana",9,96],
+    ["Especialização",2019,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Anápolis",13,107],
+    ["Especialização",2019,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Aparecida de Goiânia",22,107],
+    ["Especialização",2019,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Catalão",15,107],
+    ["Especialização",2019,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Formosa",16,107],
+    ["Especialização",2019,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Inhumas",23,107],
+    ["Especialização",2019,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","São Simão",18,107],
+    ["Especialização",2019,"Ensino Interdisciplinar sobre Infância e Direitos Humanos","UFCat (antiga Regional Catalão da UFG)","UAB","Alexânia",17,127],
+    ["Especialização",2019,"Ensino Interdisciplinar sobre Infância e Direitos Humanos","UFCat (antiga Regional Catalão da UFG)","UAB","Anápolis",17,127],
+    ["Especialização",2019,"Ensino Interdisciplinar sobre Infância e Direitos Humanos","UFCat (antiga Regional Catalão da UFG)","UAB","Catalão",24,127],
+    ["Especialização",2019,"Ensino Interdisciplinar sobre Infância e Direitos Humanos","UFCat (antiga Regional Catalão da UFG)","UAB","Cezarina",17,127],
+    ["Especialização",2019,"Ensino Interdisciplinar sobre Infância e Direitos Humanos","UFCat (antiga Regional Catalão da UFG)","UAB","Formosa",16,127],
+    ["Especialização",2019,"Ensino Interdisciplinar sobre Infância e Direitos Humanos","UFCat (antiga Regional Catalão da UFG)","UAB","Goianésia",14,127],
+    ["Especialização",2019,"Ensino Interdisciplinar sobre Infância e Direitos Humanos","UFCat (antiga Regional Catalão da UFG)","UAB","Goiás",22,127],
+
+    ["Especialização",2018,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Anápolis",34,160],
+    ["Especialização",2018,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Aparecida de Goiânia",34,160],
+    ["Especialização",2018,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Catalão",26,160],
+    ["Especialização",2018,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Goianésia",20,160],
+    ["Especialização",2018,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Inhumas",24,160],
+    ["Especialização",2018,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","UAB","Mineiros",22,160],
+    ["Especialização",2018,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Aparecida de Goiânia",31,56],
+    ["Especialização",2018,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Cavalcante",13,56],
+    ["Especialização",2018,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Goianésia",3,56],
+    ["Especialização",2018,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Goiás",6,56],
+    ["Especialização",2018,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Inhumas",3,56],
+    ["Especialização",2018,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Águas Lindas",19,127],
+    ["Especialização",2018,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Anápolis",19,127],
+    ["Especialização",2018,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Cavalcante",17,127],
+    ["Especialização",2018,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Mineiros",17,127],
+    ["Especialização",2018,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","São Simão",18,127],
+    ["Especialização",2018,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Uruaçu",20,127],
+    ["Especialização",2018,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Uruana",17,127],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Alexânia",37,173],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Aparecida de Goiânia",40,173],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Catalão",9,173],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Cezarina",22,173],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Goiás",35,173],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Mineiros",8,173],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Posse",9,173],
+    ["Especialização",2018,"Letramento Informacional: Educação para a Informação","Faculdade de Informação e Comunicação","UAB","Uruana",13,173],
+    ["Especialização",2018,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Águas Lindas",17,93],
+    ["Especialização",2018,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Anápolis",16,93],
+    ["Especialização",2018,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Catalão",9,93],
+    ["Especialização",2018,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Cezarina",15,93],
+    ["Especialização",2018,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Mineiros",10,93],
+    ["Especialização",2018,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","São Simão",15,93],
+    ["Especialização",2018,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Uruana",11,93],
+    ["Especialização",2018,"Processos e Produtos Criativos","FAV - Faculdade de Artes Visuais","UAB","Alexânia",19,112],
+    ["Especialização",2018,"Processos e Produtos Criativos","FAV - Faculdade de Artes Visuais","UAB","Alto Paraíso",20,112],
+    ["Especialização",2018,"Processos e Produtos Criativos","FAV - Faculdade de Artes Visuais","UAB","Cezarina",18,112],
+    ["Especialização",2018,"Processos e Produtos Criativos","FAV - Faculdade de Artes Visuais","UAB","Goianésia",20,112],
+    ["Especialização",2018,"Processos e Produtos Criativos","FAV - Faculdade de Artes Visuais","UAB","Uruaçu",17,112],
+    ["Especialização",2018,"Processos e Produtos Criativos","FAV - Faculdade de Artes Visuais","UAB","Uruana",18,112],
+
+    ["Especialização",2016,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Alto Paraíso",18,92],
+    ["Especialização",2016,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Anápolis",17,92],
+    ["Especialização",2016,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Catalão",17,92],
+    ["Especialização",2016,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Cezarina",9,92],
+    ["Especialização",2016,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Goianésia",19,92],
+    ["Especialização",2016,"Educação Física Escolar","UFCat (antiga Regional Catalão da UFG)","UAB","Uruaçu",12,92],
+    ["Especialização",2016,"Ensino de Biologia","UFCat (antiga Regional Catalão da UFG)","UAB","Alto Paraíso",10,65],
+    ["Especialização",2016,"Ensino de Biologia","UFCat (antiga Regional Catalão da UFG)","UAB","Anápolis",13,65],
+    ["Especialização",2016,"Ensino de Biologia","UFCat (antiga Regional Catalão da UFG)","UAB","Aparecida de Goiânia",6,65],
+    ["Especialização",2016,"Ensino de Biologia","UFCat (antiga Regional Catalão da UFG)","UAB","Catalão",16,65],
+    ["Especialização",2016,"Ensino de Biologia","UFCat (antiga Regional Catalão da UFG)","UAB","Goianésia",20,65],
+
+    ["Especialização",2015,"Arte Educação Intermediática Digital","EMAC/UFG","UAB","Aparecida de Goiânia",13,48],
+    ["Especialização",2015,"Arte Educação Intermediática Digital","EMAC/UFG","UAB","Cezarina",10,48],
+    ["Especialização",2015,"Arte Educação Intermediática Digital","EMAC/UFG","UAB","Goiás",7,48],
+    ["Especialização",2015,"Arte Educação Intermediática Digital","EMAC/UFG","UAB","Inhumas",10,48],
+    ["Especialização",2015,"Arte Educação Intermediática Digital","EMAC/UFG","UAB","Uruaçu",8,48],
+    ["Especialização",2015,"Direitos Humanos da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Anápolis",27,181],
+    ["Especialização",2015,"Direitos Humanos da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Catalão",30,181],
+    ["Especialização",2015,"Direitos Humanos da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Cezarina",25,181],
+    ["Especialização",2015,"Direitos Humanos da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Formosa",39,181],
+    ["Especialização",2015,"Direitos Humanos da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","São Simão",25,181],
+    ["Especialização",2015,"Direitos Humanos da Criança e do Adolescente","UFCat (antiga Regional Catalão da UFG)","SECADI","Uruaçu",35,181],
+    ["Especialização",2015,"Educação para a Diversidade e Cidadania","Núcleo de Direitos Humanos - NDH","SECADI","Aparecida de Goiânia",11,102],
+    ["Especialização",2015,"Educação para a Diversidade e Cidadania","Núcleo de Direitos Humanos - NDH","SECADI","Cezarina",14,102],
+    ["Especialização",2015,"Educação para a Diversidade e Cidadania","Núcleo de Direitos Humanos - NDH","SECADI","Inhumas",12,102],
+    ["Especialização",2015,"Educação para a Diversidade e Cidadania","Núcleo de Direitos Humanos - NDH","SECADI","Jussara",17,102],
+    ["Especialização",2015,"Educação para a Diversidade e Cidadania","Núcleo de Direitos Humanos - NDH","SECADI","Uruaçu",16,102],
+    ["Especialização",2015,"Educação para a Diversidade e Cidadania","Núcleo de Direitos Humanos - NDH","SECADI","Uruana",20,102],
+    ["Especialização",2015,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Alexânia",15,90],
+    ["Especialização",2015,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Aparecida de Goiânia",17,90],
+    ["Especialização",2015,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Cezarina",12,90],
+    ["Especialização",2015,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Goiás",23,90],
+    ["Especialização",2015,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Inhumas",12,90],
+    ["Especialização",2015,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","São Simão",11,90],
+    ["Especialização",2015,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","PNAP II","Alto Paraíso",16,141],
+    ["Especialização",2015,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","PNAP II","Aparecida de Goiânia",31,141],
+    ["Especialização",2015,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","PNAP II","Catalão",26,141],
+    ["Especialização",2015,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","PNAP II","Goianésia",20,141],
+    ["Especialização",2015,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","PNAP II","Mineiros",22,141],
+    ["Especialização",2015,"Gestão Pública","UFCat (antiga Regional Catalão da UFG)","PNAP II","São Simão",26,141],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Águas Lindas",22,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Cavalcante",11,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Goianésia",7,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Inhumas",15,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Jussara",11,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Mineiros",16,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Posse",10,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Uruaçu",13,109],
+    ["Especialização",2015,"História e Cultura Afro-Brasileira e Africana","Faculdade de História","UAB","Uruana",4,109],
+    ["Especialização",2015,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Alto Paraíso",14,91],
+    ["Especialização",2015,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Anápolis",11,91],
+    ["Especialização",2015,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Cezarina",16,91],
+    ["Especialização",2015,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Goiás",16,91],
+    ["Especialização",2015,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Inhumas",17,91],
+    ["Especialização",2015,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Posse",6,91],
+    ["Especialização",2015,"Inovação em Mídias Interativas","MediaLab/PRPG","UAB","Uruaçu",11,91],
+    ["Especialização",2015,"Letramento Informacional: Educação para a Informação","FIC (antiga FACOMB)","UAB","Águas Lindas",11,61],
+    ["Especialização",2015,"Letramento Informacional: Educação para a Informação","FIC (antiga FACOMB)","UAB","Anápolis",10,61],
+    ["Especialização",2015,"Letramento Informacional: Educação para a Informação","FIC (antiga FACOMB)","UAB","Goianésia",11,61],
+    ["Especialização",2015,"Letramento Informacional: Educação para a Informação","FIC (antiga FACOMB)","UAB","Inhumas",18,61],
+    ["Especialização",2015,"Letramento Informacional: Educação para a Informação","FIC (antiga FACOMB)","UAB","Jussara",4,61],
+    ["Especialização",2015,"Letramento Informacional: Educação para a Informação","FIC (antiga FACOMB)","UAB","Uruaçu",7,61],
+    ["Especialização",2015,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Anápolis",60,169],
+    ["Especialização",2015,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Cezarina",33,169],
+    ["Especialização",2015,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Formosa",33,169],
+    ["Especialização",2015,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Uruaçu",43,169],
+    ["Especialização",2015,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Águas Lindas",13,85],
+    ["Especialização",2015,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Alto Paraíso",16,85],
+    ["Especialização",2015,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Goianésia",19,85],
+    ["Especialização",2015,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Goiás",20,85],
+    ["Especialização",2015,"Patrimônio, Direitos Culturais e Cidadania","NDH-UFG/PRPG","UAB","Uruaçu",17,85],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Alexânia",7,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Aparecida de Goiânia",12,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Cezarina",7,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Goiás",8,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Inhumas",16,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Jussara",8,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Mineiros",5,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","São Simão",9,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Uruaçu",4,80],
+    ["Especialização",2015,"Tecnologias Aplicadas ao Ensino de Biologia","Instituto de Ciências Biológicas/UFG","UAB","Uruana",4,80],
+
+    ["Especialização",2014,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Anápolis",37,91],
+    ["Especialização",2014,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Cezarina",12,91],
+    ["Especialização",2014,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Formosa",14,91],
+    ["Especialização",2014,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Goianésia",8,91],
+    ["Especialização",2014,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Uruaçu",13,91],
+    ["Especialização",2014,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Uruana",7,91],
+
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Anápolis",27,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Catalão",17,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Formosa",15,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Goiânia",29,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Jataí",20,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Jussara",28,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Morrinhos",32,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Porangatu",24,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Posse",12,226],
+    ["Especialização",2013,"Coordenação Pedagógica","FE - Faculdade de Educação","SEB (1ª oferta)","Uruaçu",22,226],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Alexânia",10,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Anápolis",25,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Catalão",17,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Goianésia",21,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Goiás",12,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Itumbiara",18,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Jussara",18,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Mineiros",17,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Posse",13,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","São Simão",8,177],
+    ["Especialização",2013,"Mídias na Educação","FE – Faculdade de Educação","MIDIAS (1ª oferta)","Uruaçu",18,177],
+
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Águas Lindas",33,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Aparecida de Goiânia",44,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Goiás",28,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Inhumas",50,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Mineiros",27,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Morrinhos",43,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Piranhas",52,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","Rio Verde",36,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","São Miguel do Araguaia",31,371],
+    ["Especialização",2012,"Educação para a Diversidade e Cidadania","FD – Faculdade de Direito","SECADI","São Simão",27,371],
+    ["Especialização",2012,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Catalão",15,76],
+    ["Especialização",2012,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Inhumas",15,76],
+    ["Especialização",2012,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Itumbiara",31,76],
+    ["Especialização",2012,"Gênero e Diversidade na Escola","UFCat (antiga Regional Catalão da UFG)","SECADI","Morrinhos",15,76],
+
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Águas Lindas",26,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Anápolis",28,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Aparecida de Goiânia",17,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Formosa",21,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Goianésia",20,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Inhumas",34,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Iporá",51,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Mineiros",23,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Morrinhos",41,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Piranhas",31,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Posse",32,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Rio Verde",27,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","São Miguel do Araguaia",34,417],
+    ["Especialização",2011,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Votuporanga",32,417],
+    ["Especialização",2011,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Alexânia",18,260],
+    ["Especialização",2011,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Anápolis",57,260],
+    ["Especialização",2011,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Formosa",11,260],
+    ["Especialização",2011,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Goianésia",13,260],
+    ["Especialização",2011,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Inhumas",70,260],
+    ["Especialização",2011,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Iporá",70,260],
+    ["Especialização",2011,"Tecnologias Aplicadas ao Ensino da Biologia","ICB – Instituto de Ciências Biológicas","UAB","Votuporanga",21,260],
+
+    ["Especialização",2009,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Alexânia",31,163],
+    ["Especialização",2009,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Aparecida de Goiânia",44,163],
+    ["Especialização",2009,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Cezarina",20,163],
+    ["Especialização",2009,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Formosa",26,163],
+    ["Especialização",2009,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Goianésia",20,163],
+    ["Especialização",2009,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","São Simão",12,163],
+    ["Especialização",2009,"Metodologia do Ensino Fundamental","CEPAE – Centro de Ensino e Pesquisa Aplicado a Educação","UAB","Uruana",10,163],
+
+    // ---------------- MESTRADO ----------------
+    ["Mestrado",2018,"Matemática","IME – Instituto de Matemática e Estatística","PROFMAT","Goiânia",4,4],
+    ["Mestrado",2017,"Matemática","IME – Instituto de Matemática e Estatística","PROFMAT","Goiânia",19,19],
+    ["Mestrado",2016,"Matemática","IME – Instituto de Matemática e Estatística","PROFMAT","Goiânia",17,17],
+    ["Mestrado",2015,"Matemática","IME – Instituto de Matemática e Estatística","PROFMAT","Goiânia",20,20],
+    ["Mestrado",2014,"Matemática","IME – Instituto de Matemática e Estatística","PROFMAT","Goiânia",26,26],
+    ["Mestrado",2013,"Matemática","IME – Instituto de Matemática e Estatística","PROFMAT","Goiânia",43,43]
+  ];
+
+  var ROWS = DATA.map(function(r,i){
+    return { idx:i, nivel:r[0], ano:r[1], curso:r[2], unidade:r[3], chamada:r[4], polo:r[5], formados:r[6], total:r[7] };
+  });
+
+  var selectedChecked = new Set();
+
+  /* ---------- helpers ---------- */
+  function uniq(arr){ return Array.from(new Set(arr)).sort(function(a,b){ return (''+a).localeCompare(''+b,'pt-BR'); }); }
+  function fmtNum(n){ return (n||0).toLocaleString('pt-BR'); }
+  function $(sel,ctx){ return (ctx||document).querySelector(sel); }
+  function $all(sel,ctx){ return Array.prototype.slice.call((ctx||document).querySelectorAll(sel)); }
+  function getMultiValues(sel){ return Array.prototype.slice.call(sel.selectedOptions).map(function(o){ return o.value; }); }
+
+  var anosDisponiveis = uniq(ROWS.map(function(r){ return r.ano; })).sort(function(a,b){ return b-a; });
+  var polosDisponiveis = uniq(ROWS.map(function(r){ return r.polo; }));
+
+  function cursosParaNiveis(niveis){
+    var base = niveis && niveis.length ? ROWS.filter(function(r){ return niveis.indexOf(r.nivel) !== -1; }) : ROWS;
+    return uniq(base.map(function(r){ return r.curso; }));
+  }
+
+  function fillSelect(sel, values, opts){
+    sel.innerHTML = "";
+    values.forEach(function(v){
+      var o = document.createElement("option");
+      o.value = v; o.textContent = (opts && opts.label) ? opts.label(v) : v;
+      sel.appendChild(o);
+    });
+  }
+
+  var elNivel = $("#fNivel"), elAno = $("#fAno"), elCurso = $("#fCurso"), elCidade = $("#fCidade");
+
+  fillSelect(elNivel, NIVEIS);
+  fillSelect(elAno, anosDisponiveis);
+  fillSelect(elCurso, cursosParaNiveis([]));
+  fillSelect(elCidade, polosDisponiveis);
+
+  function currentFilters(){
+    return {
+      niveis: getMultiValues(elNivel),
+      anos: getMultiValues(elAno).map(Number),
+      cursos: getMultiValues(elCurso),
+      cidades: getMultiValues(elCidade)
+    };
+  }
+
+  function applyFilters(rows, f){
+    return rows.filter(function(r){
+      if (f.niveis.length && f.niveis.indexOf(r.nivel) === -1) return false;
+      if (f.anos.length && f.anos.indexOf(r.ano) === -1) return false;
+      if (f.cursos.length && f.cursos.indexOf(r.curso) === -1) return false;
+      if (f.cidades.length && f.cidades.indexOf(r.polo) === -1) return false;
+      return true;
+    });
+  }
+
+  /* ---------- KPIs ---------- */
+  function updateKpis(rows){
+    var somaFormados = rows.reduce(function(s,r){ return s + (typeof r.formados === "number" ? r.formados : 0); }, 0);
+    var cursos = new Set(rows.map(function(r){ return r.curso; }));
+    var polos = new Set(rows.map(function(r){ return r.polo; }));
+    var turmas = new Set(rows.map(function(r){ return r.nivel+"|"+r.ano+"|"+r.curso+"|"+r.chamada; }));
+    $("#kpiFormados").textContent = fmtNum(somaFormados);
+    $("#kpiCursos").textContent = fmtNum(cursos.size);
+    $("#kpiPolos").textContent = fmtNum(polos.size);
+    $("#kpiTurmas").textContent = fmtNum(turmas.size);
+  }
+
+  /* ---------- Gráficos (canvas puro, sem dependências) ---------- */
+  function drawBarChart(canvas, labels, values, color){
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth || 400, cssH = 220;
+    canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,cssW,cssH);
+    if (!labels.length){
+      ctx.fillStyle = "#8a978f"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("Sem dados para os filtros selecionados", cssW/2, cssH/2);
+      return;
+    }
+    var max = Math.max.apply(null, values) || 1;
+    var padL = 40, padB = 46, padT = 10, padR = 10;
+    var chartW = cssW - padL - padR, chartH = cssH - padT - padB;
+    var n = labels.length;
+    var gap = 10;
+    var barW = Math.max(6, (chartW - gap*(n-1)) / n);
+
+    // eixo
+    ctx.strokeStyle = "#c7d1cc"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT+chartH); ctx.lineTo(padL+chartW, padT+chartH); ctx.stroke();
+
+    labels.forEach(function(lab, i){
+      var v = values[i];
+      var h = (v/max) * (chartH - 8);
+      var x = padL + i*(barW+gap);
+      var y = padT + chartH - h;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, barW, h);
+      ctx.fillStyle = "#1f2a26";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(fmtNum(v), x + barW/2, y - 4 < padT ? padT+9 : y-4);
+      ctx.save();
+      ctx.translate(x + barW/2, padT + chartH + 14);
+      var rot = n > 6 ? -0.7 : 0;
+      ctx.rotate(rot);
+      ctx.textAlign = rot ? "right" : "center";
+      ctx.fillText(String(lab).length > 14 ? String(lab).slice(0,13)+"…" : lab, 0, 0);
+      ctx.restore();
+    });
+  }
+
+  function updateCharts(rows){
+    // por nível
+    var porNivel = {};
+    NIVEIS.forEach(function(n){ porNivel[n] = 0; });
+    rows.forEach(function(r){ porNivel[r.nivel] = (porNivel[r.nivel]||0) + (typeof r.formados==='number'?r.formados:0); });
+    var nivLabels = NIVEIS.filter(function(n){ return porNivel[n] > 0; });
+    if (!nivLabels.length) nivLabels = NIVEIS;
+    drawBarChart($("#chartNivel"), nivLabels, nivLabels.map(function(n){ return porNivel[n]; }), "#0b5d3b");
+
+    // por ano
+    var porAno = {};
+    rows.forEach(function(r){ porAno[r.ano] = (porAno[r.ano]||0) + (typeof r.formados==='number'?r.formados:0); });
+    var anoLabels = Object.keys(porAno).map(Number).sort(function(a,b){ return a-b; });
+    drawBarChart($("#chartAno"), anoLabels, anoLabels.map(function(a){ return porAno[a]; }), "#e9a825");
+  }
+
+  /* ---------- Abas por nível ---------- */
+  var tabButtons = $("#tabButtons"), tabPanels = $("#tabPanels");
+  var activeTab = NIVEIS[0];
+
+  NIVEIS.forEach(function(niv){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "ciarTC-tab-btn"; b.textContent = niv;
+    b.setAttribute("role","tab");
+    b.setAttribute("data-niv", niv);
+    b.addEventListener("click", function(){ activeTab = niv; renderTabs(currentFilteredRows()); });
+    tabButtons.appendChild(b);
+
+    var panel = document.createElement("div");
+    panel.className = "ciarTC-tab-panel"; panel.setAttribute("data-niv", niv);
+    tabPanels.appendChild(panel);
+  });
+
+  function renderTabPanel(niv, rows){
+    var panel = tabPanels.querySelector('[data-niv="'+niv+'"]');
+    var rowsNiv = rows.filter(function(r){ return r.nivel === niv; });
+    var soma = rowsNiv.reduce(function(s,r){ return s + (typeof r.formados==='number'?r.formados:0); }, 0);
+    var cursosSet = new Set(rowsNiv.map(function(r){ return r.curso; }));
+
+    if (!rowsNiv.length){
+      panel.innerHTML = '<p class="ciarTC-empty">Nenhum registro de '+niv+' para os filtros atuais.</p>';
+      return;
+    }
+
+    var html = '<p class="ciarTC-tab-summary"><strong>'+fmtNum(soma)+'</strong> formados em <strong>'+cursosSet.size+'</strong> curso(s) de '+niv+' (para os filtros atuais).</p>';
+    html += '<div class="ciarTC-table-scroll"><table class="ciarTC-table"><thead><tr>';
+    html += '<th><input type="checkbox" data-selall="'+niv+'" aria-label="Selecionar todos"></th>';
+    html += '<th>Ano</th><th>Curso</th><th>Unidade Acadêmica</th><th>Chamada</th><th>Cidade / Polo</th><th class="num">Formados no Polo</th><th class="num">Total do Curso/Turma</th>';
+    html += '</tr></thead><tbody>';
+
+    rowsNiv
+      .slice()
+      .sort(function(a,b){ return b.ano - a.ano || a.curso.localeCompare(b.curso,'pt-BR') || a.polo.localeCompare(b.polo,'pt-BR'); })
+      .forEach(function(r){
+        var checked = selectedChecked.has(r.idx) ? "checked" : "";
+        html += '<tr>'
+          + '<td><input type="checkbox" data-rowchk="'+r.idx+'" '+checked+'></td>'
+          + '<td>'+r.ano+'</td>'
+          + '<td>'+r.curso+'</td>'
+          + '<td>'+r.unidade+'</td>'
+          + '<td>'+r.chamada+'</td>'
+          + '<td>'+r.polo+'</td>'
+          + '<td class="num">'+(typeof r.formados==='number' ? fmtNum(r.formados) : 'Não informado')+'</td>'
+          + '<td class="num">'+fmtNum(r.total)+'</td>'
+          + '</tr>';
+      });
+    html += '</tbody></table></div>';
+    panel.innerHTML = html;
+
+    var selAll = panel.querySelector('[data-selall]');
+    selAll.addEventListener("change", function(){
+      rowsNiv.forEach(function(r){
+        if (selAll.checked) selectedChecked.add(r.idx); else selectedChecked.delete(r.idx);
+      });
+      renderTabPanel(niv, rows);
+      updateSelCount();
+    });
+    $all('[data-rowchk]', panel).forEach(function(cb){
+      cb.addEventListener("change", function(){
+        var idx = Number(cb.getAttribute("data-rowchk"));
+        if (cb.checked) selectedChecked.add(idx); else selectedChecked.delete(idx);
+        updateSelCount();
+      });
+    });
+  }
+
+  function renderTabs(rows){
+    $all(".ciarTC-tab-btn", tabButtons).forEach(function(b){
+      var sel = b.getAttribute("data-niv") === activeTab;
+      b.setAttribute("aria-selected", sel ? "true" : "false");
+    });
+    $all(".ciarTC-tab-panel", tabPanels).forEach(function(p){
+      p.classList.toggle("active", p.getAttribute("data-niv") === activeTab);
+    });
+    renderTabPanel(activeTab, rows);
+  }
+
+  function updateSelCount(){
+    $("#selCount").textContent = selectedChecked.size + " linha(s) marcada(s) nas tabelas abaixo";
+  }
+
+  /* ---------- Exportação ---------- */
+  var EXPORT_HEADER = ["Nível","Ano de Conclusão","Curso","Unidade Acadêmica","Chamada do Governo Federal","Cidade/Polo","Formados no Polo","Total do Curso/Turma"];
+
+  function rowsToExport(scope, filteredRows){
+    if (scope === "all") return ROWS;
+    if (scope === "checked") return ROWS.filter(function(r){ return selectedChecked.has(r.idx); });
+    return filteredRows;
+  }
+
+  function rowsAsArrays(rows){
+    return rows.map(function(r){
+      return [r.nivel, r.ano, r.curso, r.unidade, r.chamada, r.polo,
+              (typeof r.formados==='number'? r.formados : 'Não informado'), r.total];
+    });
+  }
+
+  function downloadBlob(content, filename, mime){
+    var blob = new Blob([content], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  }
+
+  function csvEscape(v){
+    var s = String(v);
+    if (/[",;\n]/.test(s)) s = '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  }
+
+  function exportCSV(rows, filename){
+    var lines = [EXPORT_HEADER.join(";")];
+    rowsAsArrays(rows).forEach(function(a){ lines.push(a.map(csvEscape).join(";")); });
+    downloadBlob("\uFEFF" + lines.join("\r\n"), filename, "text/csv;charset=utf-8;");
+  }
+
+  function exportXLS(rows, filename){
+    var html = "<table><tr>" + EXPORT_HEADER.map(function(h){ return "<th>"+h+"</th>"; }).join("") + "</tr>";
+    rowsAsArrays(rows).forEach(function(a){
+      html += "<tr>" + a.map(function(v){ return "<td>"+String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;')+"</td>"; }).join("") + "</tr>";
+    });
+    html += "</table>";
+    var doc = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'>"
+      + "<head><meta charset='utf-8'><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>"
+      + "<x:Name>Turmas Concluídas</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>"
+      + "</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>" + html + "</body></html>";
+    downloadBlob(doc, filename, "application/vnd.ms-excel;charset=utf-8;");
+  }
+
+  function exportPDF(rows, filename){
+    var w = window.open("", "_blank");
+    if (!w){ alert("Permita pop-ups para gerar o PDF (o navegador vai abrir a tela de impressão)."); return; }
+    var html = "<h1 style='font-family:sans-serif;color:#083f28;font-size:16px;'>Turmas Concluídas — CIAR/UFG</h1>"
+      + "<p style='font-family:sans-serif;font-size:11px;color:#555;'>Exportado em "+ new Date().toLocaleString('pt-BR') +"</p>"
+      + "<table style='border-collapse:collapse;width:100%;font-family:sans-serif;font-size:10px;'>"
+      + "<thead><tr>" + EXPORT_HEADER.map(function(h){ return "<th style='border:1px solid #ccc;padding:4px;background:#eef2f0;text-align:left;'>"+h+"</th>"; }).join("") + "</tr></thead><tbody>";
+    rowsAsArrays(rows).forEach(function(a){
+      html += "<tr>" + a.map(function(v){ return "<td style='border:1px solid #ccc;padding:4px;'>"+String(v)+"</td>"; }).join("") + "</tr>";
+    });
+    html += "</tbody></table>";
+    w.document.write("<html><head><title>"+filename+"</title></head><body>"+html+"</body></html>");
+    w.document.close();
+    w.focus();
+    setTimeout(function(){ w.print(); }, 400);
+  }
+
+  function currentFilteredRows(){ return applyFilters(ROWS, currentFilters()); }
+
+  $all('[data-export]').forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var type = btn.getAttribute("data-export");
+      var scope = btn.getAttribute("data-scope");
+      var rows = rowsToExport(scope, currentFilteredRows());
+      if (!rows.length){ alert("Não há linhas para exportar nessa opção."); return; }
+      var stamp = new Date().toISOString().slice(0,10);
+      var filename = "turmas-concluidas-ciar-" + scope + "-" + stamp;
+      if (type === "csv") exportCSV(rows, filename + ".csv");
+      else if (type === "xls") exportXLS(rows, filename + ".xls");
+      else if (type === "pdf") exportPDF(rows, filename + ".pdf");
+    });
+  });
+
+  /* ---------- render geral ---------- */
+  function renderAll(){
+    var f = currentFilters();
+    // curso options dependem do(s) nível(is) selecionado(s), preservando seleção válida
+    var cursosValidos = cursosParaNiveis(f.niveis);
+    var cursoSelecionadosValidos = f.cursos.filter(function(c){ return cursosValidos.indexOf(c) !== -1; });
+    if (cursoSelecionadosValidos.length !== f.cursos.length || elCurso.options.length !== cursosValidos.length){
+      fillSelect(elCurso, cursosValidos);
+      cursoSelecionadosValidos.forEach(function(c){
+        var opt = Array.prototype.find.call(elCurso.options, function(o){ return o.value === c; });
+        if (opt) opt.selected = true;
+      });
+      f.cursos = cursoSelecionadosValidos;
+    }
+
+    var rows = applyFilters(ROWS, f);
+    updateKpis(rows);
+    updateCharts(rows);
+    renderTabs(rows);
+    updateSelCount();
+  }
+
+  [elNivel, elAno, elCurso, elCidade].forEach(function(sel){
+    sel.addEventListener("change", renderAll);
+  });
+
+  $("#btnLimpar").addEventListener("click", function(){
+    [elNivel, elAno, elCurso, elCidade].forEach(function(sel){
+      Array.prototype.forEach.call(sel.options, function(o){ o.selected = false; });
+    });
+    renderAll();
+  });
+
+  window.addEventListener("resize", function(){ updateCharts(currentFilteredRows()); });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
